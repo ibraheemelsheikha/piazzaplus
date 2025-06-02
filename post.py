@@ -1,41 +1,48 @@
-from bs4 import BeautifulSoup #to parse html
+from bs4 import BeautifulSoup # to parse html
 
 class Post:
-    #storing most important data as attributes. more can be added later from the raw post data extracted by piazza-api
-    def __init__(self, number, has_instructor_answer, has_instructor_endorsement, subject, content):
+    # storing most important data as attributes. more can be added later
+    def __init__(self, number, subject, content, instructor_answer=None, endorsed_answer=None):
         self.number = number
-        self.has_instructor_answer = has_instructor_answer
-        self.has_instructor_endorsement = has_instructor_endorsement
         self.subject = subject
         self.content = content
+        # optional: text of the instructor's answer, if any
+        self.instructor_answer = instructor_answer
+        # optional: text of a student answer endorsed by instructor/professor
+        self.endorsed_answer = endorsed_answer
 
-def create_post_from_api(raw): #helper function. raw data is stored as a large dict with some nested lists and dicts
-    number = raw['nr'] #post number
-    
-    #checking if there is an instructors' answer. this is under the children key 
-    has_i_answer = False
-    for child in raw.get('children', []):
-        if child.get('type') == 'i_answer':
-            has_i_answer = True
-            break
-    
-    #checking if an answer is endorsed by an instructor/professor
-    has_i_endorse = False
-    for child in raw.get('children', []):
-        endorsements = child.get('tag_endorse', []) + child.get('tag_good', []) #professor is found in tag_good, instructor is found in tag_endorse. we will check both keys
-        for e in endorsements:
-            if e.get('role') in ('instructor', 'professor'): #if role returned by e.get('role') is in the tuple ('instructor', 'professor'), then there is an instructor/professor endorsement
-                has_i_endorse = True
-                break
-        if has_i_endorse:
-            break
 
-    #this is html, not plain text. should parse and extract plain text
+def create_post_from_api(raw):
+    number = raw.get('nr')  # post number
+
+    # parse subject and content from HTML to plain text
     subj_html = raw['history'][0].get('subject', '')
     cont_html = raw['history'][0].get('content', '')
-
-    #parsing html to extract only plain text
     subject = BeautifulSoup(subj_html, 'html.parser').get_text(separator=' ', strip=True)
     content = BeautifulSoup(cont_html, 'html.parser').get_text(separator=' ', strip=True)
 
-    return Post(number, has_i_answer, has_i_endorse, subject, content) #build and return the Post object
+    instructor_answer = None
+    endorsed_answer = None
+
+    # scan children for instructor answers and endorsed student answers
+    for child in raw.get('children', []):
+        ctype = child.get('type')
+        # handle instructor answer
+        if ctype == 'i_answer' and instructor_answer is None:
+            # pull the first revision's HTML
+            html = child.get('history', [{}])[0].get('content', '')
+            instructor_answer = BeautifulSoup(html, 'html.parser').get_text(separator=' ', strip=True)
+            # don't continue, an endorsed student answer may follow
+        # handle endorsed student answer
+        endorsements = child.get('tag_endorse', []) + child.get('tag_good', [])
+        for e in endorsements:
+            if e.get('role') in ('instructor', 'professor') and endorsed_answer is None:
+                # student answer endorsed by instructor/professor
+                html = child.get('history', [{}])[0].get('content', '')
+                endorsed_answer = BeautifulSoup(html, 'html.parser').get_text(separator=' ', strip=True)
+                break
+        # if both found, exit early
+        if instructor_answer is not None and endorsed_answer is not None:
+            break
+
+    return Post(number=number, subject=subject, content=content, instructor_answer=instructor_answer, endorsed_answer=endorsed_answer)
