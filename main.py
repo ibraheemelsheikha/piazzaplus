@@ -1,81 +1,149 @@
 import json
+import re
+import hashlib
+from pathlib import Path
+
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from sentence_transformers import SentenceTransformer
 
-# custom embeddings class that uses SentenceTransformer under the hood
+# ---------------------------------------------------------------------------
+# Helper: compute SHA-1 hash of a file to detect changes
+# ---------------------------------------------------------------------------
+def sha1_of_file(path: str) -> str:
+    """Return the SHA-1 hash of the contents of the file at `path`."""
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        while chunk := f.read(8192):
+            h.update(chunk)
+    return h.hexdigest()
+
+# ---------------------------------------------------------------------------
+# Custom Embeddings Class
+# Wraps SentenceTransformer for embed_documents and embed_query
+# ---------------------------------------------------------------------------
 class SentenceTransformerEmbeddings(Embeddings):
-    # initialize with the name of the pretrained SentenceTransformer model
     def __init__(self, model_name: str):
-        # load the transformer model by name
         self.model = SentenceTransformer(model_name)
     
-    # embed a list of document texts into vectors
-    def embed_documents(self, texts: list[str]):
-        # use model to encode texts, returns numpy arrays
-        embeddings = self.model.encode(texts, convert_to_tensor=False)
-        # convert numpy arrays to regular Python lists
-        return embeddings.tolist()
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Embed a batch of texts into vectors."""
+        return self.model.encode(texts, convert_to_tensor=False).tolist()
     
-    # embed a single query string into a numerical vector
-    def embed_query(self, text: str):
-        # encode the query text the same way as documents
-        embedding = self.model.encode(text, convert_to_tensor=False)
-        # return the embedding as a Python list
-        return embedding.tolist()
+    def embed_query(self, text: str) -> list[float]:
+        """Embed a single query string into a vector."""
+        return self.model.encode(text, convert_to_tensor=False).tolist()
 
-# instantiate the embedding model
+# ---------------------------------------------------------------------------
+# Text Cleaning
+# Remove Markdown images, convert links, strip inline code markers
+# ---------------------------------------------------------------------------
+def clean_text(text: str) -> str:
+    # drop image markdown ![alt](url)
+    text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+    # convert [label](url) -> label
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    # remove inline backticks
+    return text.replace('`', '')
+
+# ---------------------------------------------------------------------------
+# Sentence Chunking
+# Split on ., ?, or ! followed by whitespace, preserving sentences
+# ---------------------------------------------------------------------------
+def split_into_sentences(text: str) -> list[str]:
+    sentences: list[str] = []
+    for line in text.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        # split at punctuation boundary
+        parts = re.split(r'(?<=[\.\?!])\s+', line)
+        for part in parts:
+            part = part.strip()
+            if part:
+                sentences.append(part)
+    return sentences
+
+# ---------------------------------------------------------------------------
+# Initialization
+# Set up embedding model and paths for persistence
+# ---------------------------------------------------------------------------
 embedding_model = SentenceTransformerEmbeddings("sentence-transformers/all-MiniLM-L6-v2")
+persist_dir = Path("./db")
+hash_file = persist_dir / "posts_hash.txt"
+json_path = Path("posts.json")
 
-# read the stored .json file containing post subject and content
-with open('posts.json', 'r', encoding='utf-8') as f:
-    data = json.load(f)  # data is a dict mapping post post ID to post info dicts
+# ---------------------------------------------------------------------------
+# Database Loading or Rebuild
+# Use SHA-1 of posts.json to guard rebuilds
+# ---------------------------------------------------------------------------
+json_hash = sha1_of_file(str(json_path))
+if persist_dir.exists() and hash_file.exists() and hash_file.read_text() == json_hash:
+    # Load existing Chroma DB if JSON unchanged
+    vector_database = Chroma(
+        persist_directory=str(persist_dir),
+        embedding_function=embedding_model,
+        collection_metadata={"hnsw:space": "cosine"}
+    )
+else:
+    # Rebuild: read all posts, clean, chunk, and index
+    with open(json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
 
-# list of combined "subject + content" strings, with optional answers
-combined_posts = []
-for post in data.values():
-    # extract subject, defaulting to empty string if missing, and strip whitespace
-    subject = post.get('subject', '').strip()
-    # extract content and strip whitespace
-    content = post.get('content', '').strip()
-    # build the base text: subject + content
-    text = subject + ' ' + content
-    # include instructor answer if present
-    instr_ans = post.get('instructor_answer', '').strip()
-    if instr_ans:
-        text += ' ' + instr_ans
-    # include endorsed student answer if present
-    end_ans = post.get('endorsed_answer', '').strip()
-    if end_ans:
-        text += ' ' + end_ans
-    combined_posts.append(text)
+    documents: list[Document] = []
+    for post_id, post in data.items():
+        subject = post.get('subject', '').strip()
+        content = post.get('content', '').strip()
+        instr_ans = post.get('instructor_answer', '').strip()
+        end_ans = post.get('endorsed_answer', '').strip()
+        full_text = ' '.join(filter(None, [subject, content, instr_ans, end_ans]))
 
-# wrap each combined post string in a Document object for the vector store,
-# including metadata for post number and subject for later retrieval
-documents = []
-for post_id, post in data.items():
-    subject = post.get('subject', '').strip()
-    content = post.get('content', '').strip()
-    text = subject + ' ' + content
-    # attach post_id and subject in metadata
-    document = Document(page_content=text, metadata={'post_id': post_id, 'subject': subject})
-    documents.append(document)
+        clean = clean_text(full_text)
+        sentence_chunks = split_into_sentences(clean)
 
-# create a Chroma vector database from the list of Document objects
-# chroma will use embedding_model to generate embeddings
-vector_database = Chroma.from_documents(
-    documents=documents,
-    embedding=embedding_model
+        for idx, chunk in enumerate(sentence_chunks):
+            meta = {
+                'post_id': post_id,
+                'subject': subject,
+                'sentence_index': idx
+            }
+            documents.append(Document(page_content=chunk, metadata=meta))
+
+    # Build Chroma with cosine via collection_metadata and persist
+    vector_database = Chroma.from_documents(
+        documents=documents,
+        embedding=embedding_model,
+        persist_directory=str(persist_dir),
+        collection_metadata={"hnsw:space": "cosine"}
+    )
+    hash_file.write_text(json_hash)
+
+# ---------------------------------------------------------------------------
+# Query & Retrieval
+# Prompt user, search top 100 chunks, then aggregate by post
+# ---------------------------------------------------------------------------
+query = input("Enter a query here: ")
+results = vector_database.similarity_search_with_score(query, k=100)
+
+# ── Aggregate chunk‐level distances as similarities per post_id ──
+post_scores: dict[str, dict[str, float]] = {}
+for doc, dist in results:
+    pid  = doc.metadata['post_id']
+    subj = doc.metadata['subject']
+    sim  = 1.0 - dist                   # convert distance → similarity
+    if pid not in post_scores:
+        post_scores[pid] = {'subject': subj, 'score': 0.0}
+    post_scores[pid]['score'] += sim    # sum up similarities
+
+# ── Sort by total similarity (highest first) ──
+sorted_posts = sorted(
+    post_scores.items(),
+    key=lambda x: x[1]['score'],
+    reverse=True                       # now higher sim → better
 )
 
-query = input("Enter a query here: ")  # blocks execution until input is provided
+# ── Print the top 10 most semantically similar posts ──
+for rank, (pid, info) in enumerate(sorted_posts[:10], start=1):
+    print(f"{rank}. Post #{pid} — {info['subject']} (score: {info['score']:.4f})")
 
-# similarity search for the top 10 documents matching the query, retrieving scores. uses cosine similarity
-results = vector_database.similarity_search_with_score(query, k=10)
-
-# Iterate over the results and print each matched document's post number, subject, and score
-for i, (result, score) in enumerate(results, start=1):
-    pid = result.metadata['post_id']
-    subj = result.metadata['subject']
-    print(f"Result {i}: Post #{pid} — {subj} (score: {score:.4f})")
