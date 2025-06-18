@@ -10,11 +10,6 @@ from sentence_transformers import SentenceTransformer
 import sys
 import time  # for timing phases
 
-try:
-    from rank_bm25 import BM25Okapi
-except ImportError:
-    sys.exit("Error: the 'rank_bm25' library is required for hybrid search. Install it via pip install rank_bm25.")
-
 # Helper: compute SHA-1 hash of a file to detect changes
 def sha1_of_file(path: str) -> str:
     h = hashlib.sha1()
