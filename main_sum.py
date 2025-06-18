@@ -86,7 +86,7 @@ else:
     documents = []
     post_texts = []
     post_ids = []
-    print("Splitting posts into sliding window chunks.")
+    print("Chunking by post...")
     for post_id, post in data.items():
         subj = post.get('subject', '').strip()
         cont = post.get('content', '').strip()
@@ -95,14 +95,12 @@ else:
         full = ' '.join(filter(None, [subj, cont, ia, ea]))
         post_texts.append(full)
         post_ids.append(post_id)
-        clean = clean_text(full)
-        sents = split_into_sentences(clean)
-        chunks = make_sliding_chunks(sents)
-        for idx, chunk in enumerate(chunks):
-            documents.append(Document(
-                page_content=chunk,
-                metadata={'post_id': post_id, 'subject': subj, 'idx': idx}
-            ))
+        
+        # Post‐level chunking: embed the entire post as one document
+        documents.append(Document(
+            page_content=full,
+            metadata={'post_id': post_id, 'subject': subj, 'idx': 0}
+        ))
 
     print(f"Embedding {len(documents)} chunks...")
     vector_database = Chroma.from_documents(
