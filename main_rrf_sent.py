@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_chroma import Chroma
 from sentence_transformers import SentenceTransformer
+import sys
 import time  # for timing phases
 
 from rank_bm25 import BM25Okapi
@@ -36,6 +37,32 @@ persist_dir = Path("./db")
 hash_file = persist_dir / "posts_hash.txt"
 json_path = Path("posts.json")
 
+# Text Cleaning and Chunking
+def clean_text(text: str) -> str:
+    text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    return text.replace('`', '')
+
+def split_into_sentences(text: str) -> list[str]:
+    sentences = []
+    for line in text.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        parts = re.split(r'(?<=[\.\?!])\s+', line)
+        sentences.extend([p.strip() for p in parts if p.strip()])
+    return sentences
+
+# Sliding Window Chunking helper
+def make_sliding_chunks(sentences: list[str]) -> list[str]:
+    chunks: list[str] = []
+    n = len(sentences)
+    for w in (2, 3):
+        for i in range(n - w + 1):
+            window = sentences[i:i+w]
+            chunks.append(' '.join(window))
+    return chunks
+
 # Load or Build Index
 print("Starting index load/build phase")
 start_all = time.perf_counter()
@@ -54,10 +81,10 @@ else:
     with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    documents = []
-    post_texts = []
-    post_ids = []
-    print("Chunking by post...")
+    documents: list[Document] = []
+    post_texts: list[str] = []
+    post_ids: list[str] = []
+    print("Splitting posts into sliding window chunks.")
     for post_id, post in data.items():
         subj = post.get('subject', '').strip()
         cont = post.get('content', '').strip()
@@ -66,11 +93,14 @@ else:
         full = ' '.join(filter(None, [subj, cont, ia, ea]))
         post_texts.append(full)
         post_ids.append(post_id)
-        # Post-level chunking: embed the entire post as one document
-        documents.append(Document(
-            page_content=full,
-            metadata={'post_id': post_id, 'subject': subj, 'idx': 0}
-        ))
+        clean = clean_text(full)
+        sents = split_into_sentences(clean)
+        chunks = make_sliding_chunks(sents)
+        for idx, chunk in enumerate(chunks):
+            documents.append(Document(
+                page_content=chunk,
+                metadata={'post_id': post_id, 'subject': subj, 'idx': idx}
+            ))
 
     print(f"Embedding {len(documents)} chunks...")
     vector_database = Chroma.from_documents(
@@ -118,7 +148,7 @@ sem_results = vector_database.similarity_search_with_score(query, k=100)
 sem_ids = [d.metadata['post_id'] for d, _ in sem_results]
 
 # RRF reranking
-nrrf_scores = {}
+nrrf_scores: dict[str, float] = {}
 bm25_rank = {pid: i+1 for i, pid in enumerate(bm25_ids)}
 sem_rank = {d.metadata['post_id']: i+1 for i, (d, _) in enumerate(sem_results)}
 k_rrf = 60
