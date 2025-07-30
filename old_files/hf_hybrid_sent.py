@@ -2,18 +2,13 @@ import json
 import re
 import hashlib
 from pathlib import Path
+import time
 
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
 from langchain_chroma import Chroma
-from sentence_transformers import SentenceTransformer
-import sys
-import time  # for timing phases
+from langchain_huggingface import HuggingFaceEmbeddings
 
-try:
-    from rank_bm25 import BM25Okapi
-except ImportError:
-    sys.exit("Error: the 'rank_bm25' library is required for hybrid search. Install it via pip install rank_bm25.")
+from rank_bm25 import BM25Okapi
 
 # Helper: compute SHA-1 hash of a file to detect changes
 def sha1_of_file(path: str) -> str:
@@ -22,15 +17,6 @@ def sha1_of_file(path: str) -> str:
         while chunk := f.read(8192):
             h.update(chunk)
     return h.hexdigest()
-
-# Embedding Model Wrapper
-class SentenceTransformerEmbeddings(Embeddings):
-    def __init__(self, model_name: str):
-        self.model = SentenceTransformer(model_name)
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return self.model.encode(texts, convert_to_tensor=False).tolist()
-    def embed_query(self, text: str) -> list[float]:
-        return self.model.encode(text, convert_to_tensor=False).tolist()
 
 # Text Cleaning and Chunking
 def clean_text(text: str) -> str:
@@ -59,7 +45,7 @@ def make_sliding_chunks(sentences: list[str]) -> list[str]:
     return chunks
 
 # Setup paths and embedding model
-embedding_model = SentenceTransformerEmbeddings("sentence-transformers/all-MiniLM-L6-v2")
+embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 persist_dir = Path("./db")
 hash_file = persist_dir / "posts_hash.txt"
 json_path = Path("posts.json")

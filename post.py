@@ -1,48 +1,82 @@
-from bs4 import BeautifulSoup # to parse html
+from bs4 import BeautifulSoup  # to parse html
 
 class Post:
-    # storing most important data as attributes. more can be added later
-    def __init__(self, number, subject, content, instructor_answer=None, endorsed_answer=None):
+    # storing most important data as attributes, now including image info
+    def __init__(
+        self,
+        number,
+        subject,
+        content,
+        instructor_answer=None,
+        endorsed_answer=None,
+        has_image=False,
+        image_urls=None,
+    ):
         self.number = number
         self.subject = subject
         self.content = content
-        # optional: text of the instructor's answer, if any
         self.instructor_answer = instructor_answer
-        # optional: text of a student answer endorsed by instructor/professor
         self.endorsed_answer = endorsed_answer
+        self.has_image = has_image
+        self.image_urls = image_urls or []
 
 
 def create_post_from_api(raw):
-    number = raw.get('nr')  # post number
+    """
+    Build a Post object from the raw Piazza API response.
+    Extracts initial post content, images, instructor answers, and endorsed student answers.
+    """
+    # Post number
+    number = raw.get('nr')
 
-    # parse subject and content from HTML to plain text
-    subj_html = raw['history'][0].get('subject', '')
-    cont_html = raw['history'][0].get('content', '')
-    subject = BeautifulSoup(subj_html, 'html.parser').get_text(separator=' ', strip=True)
-    content = BeautifulSoup(cont_html, 'html.parser').get_text(separator=' ', strip=True)
+    # Subject: direct or from history as fallback
+    subject = raw.get('subject', '') or raw.get('history', [{}])[0].get('subject', '')
+    subject = subject.strip()
 
+    # Initial post content and image detection
+    history = raw.get('history', [])
+    initial_entry = history[0] if history else {}
+    initial_html = initial_entry.get('content', '')
+    soup = BeautifulSoup(initial_html, 'html.parser')
+    img_tags = soup.find_all('img')
+    image_urls = [img['src'] for img in img_tags if img.get('src')]
+    has_image = bool(image_urls)
+    content = soup.get_text(separator=' ', strip=True)
+
+    # Initialize answer fields
     instructor_answer = None
     endorsed_answer = None
 
-    # scan children for instructor answers and endorsed student answers
+    # Traverse follow-up "children" for answers
     for child in raw.get('children', []):
-        ctype = child.get('type')
-        # handle instructor answer
-        if ctype == 'i_answer' and instructor_answer is None:
-            # pull the first revision's HTML
-            html = child.get('history', [{}])[0].get('content', '')
-            instructor_answer = BeautifulSoup(html, 'html.parser').get_text(separator=' ', strip=True)
-            # don't continue, an endorsed student answer may follow
-        # handle endorsed student answer
-        endorsements = child.get('tag_endorse', []) + child.get('tag_good', [])
-        for e in endorsements:
-            if e.get('role') in ('instructor', 'professor') and endorsed_answer is None:
-                # student answer endorsed by instructor/professor
-                html = child.get('history', [{}])[0].get('content', '')
-                endorsed_answer = BeautifulSoup(html, 'html.parser').get_text(separator=' ', strip=True)
-                break
-        # if both found, exit early
+        # Use latest history entry for content
+        ch_history = child.get('history', [])
+        latest = ch_history[-1] if ch_history else {}
+        child_html = latest.get('content', '')
+        child_text = BeautifulSoup(child_html, 'html.parser').get_text(separator=' ', strip=True)
+
+        # Detect an instructor/professor answer
+        if child.get('type') == 'i_answer' and instructor_answer is None:
+            instructor_answer = child_text or None
+            # continue to look for endorsed student answers
+
+        # Detect a student answer that has been endorsed by an instructor/professor
+        if child.get('type') in ('s_answer', 'followup') and endorsed_answer is None:
+            endorsements = child.get('tag_endorse', []) + child.get('tag_good', [])
+            if any(e.get('role') in ('instructor', 'professor') for e in endorsements):
+                endorsed_answer = child_text or None
+
+        # Stop early if both answers found
         if instructor_answer is not None and endorsed_answer is not None:
             break
 
-    return Post(number=number, subject=subject, content=content, instructor_answer=instructor_answer, endorsed_answer=endorsed_answer)
+    # Return populated Post
+    return Post(
+        number=number,
+        subject=subject,
+        content=content,
+        instructor_answer=instructor_answer,
+        endorsed_answer=endorsed_answer,
+        has_image=has_image,
+        image_urls=image_urls,
+    )
