@@ -1,11 +1,11 @@
-# piazza-scraper.py dependencies
+# piazza-scraper
 nltk
 piazza-api
 beautifulsoup4
 python-dotenv
 
-# main.py dependencies
+# main.py
 langchain
-langchain-chroma
-langchain-openai
+chromadb
+openai
 rank_bm25

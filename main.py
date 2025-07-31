@@ -13,6 +13,9 @@ from langchain_chroma import Chroma
 #from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 
+from langchain import OpenAI
+from langchain.vectorstores import Chroma
+
 import base64
 import httpx
 import requests
