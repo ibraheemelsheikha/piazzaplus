@@ -4,8 +4,10 @@ from piazza_api import Piazza
 from post import create_post_from_api
 from bs4 import MarkupResemblesLocatorWarning
 import warnings
+from dotenv import load_dotenv
+#warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
+load_dotenv()
 
 # Piazza domain prefix for image URLs
 PIAZZA_DOMAIN = "https://piazza.com"
