@@ -61,6 +61,17 @@ def sha1_of_file(path: str) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+# Convert Piazza image link to the redirect link by following HTTP redirect
+def to_cdn_url(redirect_url: str) -> str:
+    """
+    Follows a Piazza redirect URL, returning the final CDN URL.
+    """
+    resp = requests.get(redirect_url, allow_redirects=False)
+    if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
+        return resp.headers.get('Location')
+    resp.raise_for_status()
+    return redirect_url
+
 # Text Cleaning
 def clean_text(text: str) -> str:
     text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
@@ -102,7 +113,28 @@ else:
         post_texts.append(full)
         post_ids.append(post_id)
 
-        # Image captioning logic omitted for brevity...
+        # If there are any Piazza redirect image URLs, generate captions
+        image_urls = re.findall(r'https://piazza\.com/redirect/s3\?[^\s)]+', full)
+        captions = []
+        for redirect_url in image_urls:
+            try:
+                cdn_url = to_cdn_url(redirect_url)
+                img_bytes = httpx.get(cdn_url, follow_redirects=True).content
+                image_data = base64.b64encode(img_bytes).decode("utf-8")
+                message = {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Please describe this image to someone who is visually impaired. Please describe all drawings and transcribe any text. Use up to 350 words"},
+                        {"type": "image", "source_type": "base64", "data": image_data, "mime_type": "image/png"},
+                    ],
+                }
+                resp = llm_vision.invoke([message])
+                captions.append(resp.text())
+            except Exception as e:
+                print(f"Image caption failed for {redirect_url}: {e}")
+        if captions:
+            full = full + ' ' + ' '.join(captions)
+
         # Clean, chunk, and collect documents
         clean = clean_text(full)
         chunks_2 = splitter_2.split_text(clean)
