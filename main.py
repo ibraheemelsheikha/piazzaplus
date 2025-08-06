@@ -4,7 +4,6 @@ import hashlib
 from pathlib import Path
 import time
 import os
-import argparse
 
 import nltk
 nltk.download('punkt_tab')
@@ -21,36 +20,37 @@ from rank_bm25 import BM25Okapi
 
 from dotenv import load_dotenv
 
-# Load environment variables
-env_loaded = load_dotenv()
+# load environment variables
+load_dotenv()
+# course nid from environment
+course_code = os.getenv('PIAZZA_NETWORK_ID')
 
-# Argument parsing for course code
-parser = argparse.ArgumentParser(description="Hybrid semantic-keyword search for Piazza courses.")
-parser.add_argument('--course', type=str, default=os.getenv('PIAZZA_NETWORK_ID'),
-                    help="Course network ID to process.")
-args = parser.parse_args()
-course_code = args.course
+# base data directory
+data_dir = Path('data')
+data_dir.mkdir(parents=True, exist_ok=True)
+
 if course_code:
-    base_dir = Path(course_code)
+    base_dir = data_dir / course_code
 else:
-    base_dir = Path('.')
-# Ensure base directory exists
+    base_dir = data_dir
+
+# ensure base directory exists
 base_dir.mkdir(parents=True, exist_ok=True)
 
-# Setup paths and embedding model
+# setup paths and embedding model
 embedding_model = OpenAIEmbeddings(model="text-embedding-3-large")
 persist_dir = base_dir / "db"
 hash_file = persist_dir / "posts_hash.txt"
 json_path = base_dir / "posts.json"
 
-# instantiate vision-capable LLM for image captioning
+# instantiate image captioning LLM
 llm_vision = ChatOpenAI(model_name="gpt-4o-mini")
 
-# Setup LangChain sentence splitters
-splitter_2 = NLTKTextSplitter(chunk_size=2, chunk_overlap=1)
-splitter_3 = NLTKTextSplitter(chunk_size=3, chunk_overlap=2)
+# setup langchain sentence splitters
+splitter_2 = NLTKTextSplitter(chunk_size=20, chunk_overlap=12)
+splitter_3 = NLTKTextSplitter(chunk_size=25, chunk_overlap=15)
 
-# Helper: compute SHA-1 hash of a file to detect changes
+# helper: compute hash of a file to detect changes
 def sha1_of_file(path: str) -> str:
     h = hashlib.sha1()
     with open(path, 'rb') as f:
@@ -61,32 +61,29 @@ def sha1_of_file(path: str) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-# Convert Piazza image link to the redirect link by following HTTP redirect
+# convert piazza image link to the redirect link by following http redirect
 def to_cdn_url(redirect_url: str) -> str:
-    """
-    Follows a Piazza redirect URL, returning the final CDN URL.
-    """
     resp = requests.get(redirect_url, allow_redirects=False)
     if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
         return resp.headers.get('Location')
     resp.raise_for_status()
     return redirect_url
 
-# Text Cleaning
+# text cleaner
 def clean_text(text: str) -> str:
     text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
     text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
     return text.replace('`', '')
 
-# Main indexing and retrieval logic
+# main indexing and retrieval logic
 print(f"Starting index load/build phase for course {course_code or 'default'}")
 start_all = time.perf_counter()
 
-# Compute hash for posts.json
+# compute hash for posts.json
 json_hash = sha1_of_file(str(json_path))
 print(f"Computed SHA-1 hash for {json_path}: {json_hash[:8]}...")
 
-# Build or load vector DB based on hash
+# build or load vector db based on hash
 if persist_dir.exists() and hash_file.exists() and hash_file.read_text() == json_hash:
     print("Using existing vector database.")
     vector_database = Chroma(
@@ -113,8 +110,8 @@ else:
         post_texts.append(full)
         post_ids.append(post_id)
 
-        # If there are any Piazza redirect image URLs, generate captions
-        image_urls = re.findall(r'https://piazza\.com/redirect/s3\?[^\s)]+', full)
+        # if there are any Piazza redirect image urls, generate captions
+        image_urls = post.get("image_urls", [])
         captions = []
         for redirect_url in image_urls:
             try:
@@ -124,18 +121,19 @@ else:
                 message = {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Please describe this image to someone who is visually impaired. Please describe all drawings and transcribe any text. Use up to 350 words"},
+                        {"type": "text", "text": "Please describe this image to someone who is struggling with this course's content. Please describe all drawings and transcribe any text. Use up to 250 words."},
                         {"type": "image", "source_type": "base64", "data": image_data, "mime_type": "image/png"},
                     ],
                 }
                 resp = llm_vision.invoke([message])
+                time.sleep(1)
                 captions.append(resp.text())
             except Exception as e:
                 print(f"Image caption failed for {redirect_url}: {e}")
         if captions:
             full = full + ' ' + ' '.join(captions)
 
-        # Clean, chunk, and collect documents
+        # clean, chunk, and collect documents
         clean = clean_text(full)
         chunks_2 = splitter_2.split_text(clean)
         chunks_3 = splitter_3.split_text(clean)
@@ -156,11 +154,11 @@ else:
     t1 = time.perf_counter()
     print(f"Rebuild completed in {t1 - t0:.2f} seconds.")
 
-    # BM25 indexing
+    # bm25 indexing
     tokenized_corpus = [re.findall(r"[A-Za-z]+|\d+", txt.lower()) for txt in post_texts]
     bm25 = BM25Okapi(tokenized_corpus)
 
-# If BM25 wasn't built in this run, build now
+# if bm25 wasn't built in this run, build now
 if 'bm25' not in locals():
     with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
@@ -176,19 +174,19 @@ print("Index load/build phase complete.")
 end_all = time.perf_counter()
 print(f"Total load/build time: {end_all - start_all:.2f} seconds.")
 
-# Query & Retrieval (Hybrid)
+# query & retrieval
 print("Starting query phase.")
 prep_start = time.perf_counter()
 query = input("Enter query: ")
 prep_end = time.perf_counter()
 print(f"Query input received in {prep_end - prep_start:.2f} seconds.")
 
-# BM25 stage
+# bm25 stage
 tokens = re.findall(r"[A-Za-z]+|\d+", query.lower())
 bm25_ids = bm25.get_top_n(tokens, post_ids, n=100)
 bm25_set = set(bm25_ids)
 
-# Semantic stage
+# semantic stage
 results = vector_database.similarity_search_with_score(query, k=100)
 results = [(d, dist) for d, dist in results if d.metadata['post_id'] in bm25_set]
 
@@ -201,7 +199,7 @@ for d, dist in results:
     post_scores.setdefault(pid, {'subject': subj, 'score': sim})
     post_scores[pid]['score'] = max(post_scores[pid]['score'], sim)
 
-# Output top results
+# output top results
 top_posts = sorted(post_scores.items(), key=lambda x: x[1]['score'], reverse=True)
 print("Retrieval complete. Top 10 posts:")
 for idx, (pid, info) in enumerate(top_posts[:10], start=1):

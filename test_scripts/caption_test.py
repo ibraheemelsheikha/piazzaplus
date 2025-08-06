@@ -3,6 +3,10 @@ import httpx
 from langchain_openai import ChatOpenAI
 import requests
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 def to_cdn_url(redirect_url: str) -> str:
     """
     Follows a Piazza redirect URL without loading the body, returning the final CDN URL.
@@ -18,7 +22,7 @@ def to_cdn_url(redirect_url: str) -> str:
     return redirect_url
 
 #fetch image data
-piazza_url = "https://cdn-uploads.piazza.com/paste/lm7ul7s687n4fe/704802f944a73744684c85e0f9aef3f2b076ef89cf2947d4a9201d237824f09e/image.png"
+piazza_url = "https://cdn-uploads.piazza.com/paste/ljt09653okw544/220dd44e7aceeb1605e96c869560023ba4d5db63f07de636caba1e252f30ebe4/image.png"
 image_url = to_cdn_url(piazza_url)
 image_data = base64.b64encode(httpx.get(image_url).content).decode("utf-8")
 
@@ -30,7 +34,7 @@ message = {
     "content": [
         {
             "type": "text",
-            "text": "Describe this image to someone who is struggling in the course. Describe all drawings and transcribe any text. Use up to 200 words",
+            "text": "Please describe this image to someone who is struggling in the course. Please describe all drawings and transcribe any text. Use up to 200 words",
         },
         {
             "type": "image",

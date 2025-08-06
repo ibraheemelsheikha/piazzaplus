@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import json
 import time
@@ -32,31 +31,32 @@ def save_stored_posts(data: dict, path: Path) -> None:
 
 
 def main():
-    # ---------- Credentials ----------
+    # credentials
     email = os.getenv('PIAZZA_EMAIL')
     password = os.getenv('PIAZZA_PASSWORD')
     if not email or not password:
         print("Error: PIAZZA_EMAIL and PIAZZA_PASSWORD must be set.")
         return
 
-    # ---------- Target Courses ----------
+    # target courses
     ids_env = os.getenv('PIAZZA_NETWORK_IDS')
     if ids_env:
         network_ids = [nid.strip() for nid in ids_env.split(',') if nid.strip()]
     else:
         single = os.getenv('PIAZZA_NETWORK_ID')
         if not single:
-            print("Error: Set PIAZZA_NETWORK_ID or PIAZZA_NETWORK_IDS in environment.")
+            print("Error: Set PIAZZA_NETWORK_ID or PIAAZZA_NETWORK_IDS in environment.")
             return
         network_ids = [single]
 
-    # ---------- Piazza Login ----------
     piazza = Piazza()
     piazza.user_login(email=email, password=password)
 
-    # ---------- Scrape Loop ----------
+    data_dir = Path('data')
+    data_dir.mkdir(parents=True, exist_ok=True)
+
     for class_code in network_ids:
-        course_dir = Path(class_code)
+        course_dir = data_dir / class_code
         course_dir.mkdir(parents=True, exist_ok=True)
         storage_file = course_dir / 'posts.json'
 
