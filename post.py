@@ -29,11 +29,11 @@ def create_post_from_api(raw):
     # Post number
     number = raw.get('nr')
 
-    # Subject: direct or from history as fallback
+    # subject: direct or from history as fallback
     subject = raw.get('subject', '') or raw.get('history', [{}])[0].get('subject', '')
     subject = subject.strip()
 
-    # Initial post content and image detection
+    # initial post content and image detection
     history = raw.get('history', [])
     initial_entry = history[0] if history else {}
     initial_html = initial_entry.get('content', '')
@@ -43,34 +43,34 @@ def create_post_from_api(raw):
     has_image = bool(image_urls)
     content = soup.get_text(separator=' ', strip=True)
 
-    # Initialize answer fields
+    # initialize answer fields
     instructor_answer = None
     endorsed_answer = None
 
-    # Traverse follow-up "children" for answers
+    # traverse follow-up children for answers
     for child in raw.get('children', []):
-        # Use latest history entry for content
+        # use latest history entry for content
         ch_history = child.get('history', [])
         latest = ch_history[-1] if ch_history else {}
         child_html = latest.get('content', '')
         child_text = BeautifulSoup(child_html, 'html.parser').get_text(separator=' ', strip=True)
 
-        # Detect an instructor/professor answer
+        # detect an instructor/professor answer
         if child.get('type') == 'i_answer' and instructor_answer is None:
             instructor_answer = child_text or None
             # continue to look for endorsed student answers
 
-        # Detect a student answer that has been endorsed by an instructor/professor
+        # detect a student answer that has been endorsed by an instructor/professor
         if child.get('type') in ('s_answer', 'followup') and endorsed_answer is None:
             endorsements = child.get('tag_endorse', []) + child.get('tag_good', [])
             if any(e.get('role') in ('instructor', 'professor') for e in endorsements):
                 endorsed_answer = child_text or None
 
-        # Stop early if both answers found
+        # stop early if both answers found
         if instructor_answer is not None and endorsed_answer is not None:
             break
 
-    # Return populated Post
+    # return populated Post
     return Post(
         number=number,
         subject=subject,

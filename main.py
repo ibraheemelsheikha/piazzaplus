@@ -20,10 +20,15 @@ from rank_bm25 import BM25Okapi
 
 from dotenv import load_dotenv
 
-# load environment variables
+# load openai key
 load_dotenv()
-# course nid from environment
-course_code = os.getenv('PIAZZA_NETWORK_ID')
+
+# get course nid from auth.json
+with open("auth.json", "r", encoding="utf-8") as f:
+    auth_map = json.load(f)
+course_code = input("Enter course network ID: ").strip()
+if course_code not in auth_map:
+    raise KeyError(f"Course network ID {course_code} not found in auth.json")
 
 # base data directory
 data_dir = Path('data')

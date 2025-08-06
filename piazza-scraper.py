@@ -9,9 +9,19 @@ from post import create_post_from_api
 from bs4 import MarkupResemblesLocatorWarning
 from dotenv import load_dotenv
 
-# Suppress HTML parsing warnings
+# suppress html parsing warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 load_dotenv()
+
+AUTH_PATH = Path("auth.json")
+if not AUTH_PATH.exists():
+    print("auth.json not found.")
+    exit(1)
+auth_map = json.loads(AUTH_PATH.read_text())
+
+course_code = input("Enter course network ID: ").strip()
+if course_code not in auth_map:
+    raise KeyError(f"Course network ID {course_code} not found in auth.json")
 
 PIAZZA_DOMAIN = "https://piazza.com"
 RATE_LIMIT = 2.0  # seconds between API calls
@@ -31,83 +41,82 @@ def save_stored_posts(data: dict, path: Path) -> None:
 
 
 def main():
-    # credentials
-    email = os.getenv('PIAZZA_EMAIL')
-    password = os.getenv('PIAZZA_PASSWORD')
-    if not email or not password:
-        print("Error: PIAZZA_EMAIL and PIAZZA_PASSWORD must be set.")
-        return
+    data_dir = Path('data')
+    data_dir.mkdir(parents=True, exist_ok=True)
 
-    # target courses
-    ids_env = os.getenv('PIAZZA_NETWORK_IDS')
-    if ids_env:
-        network_ids = [nid.strip() for nid in ids_env.split(',') if nid.strip()]
-    else:
-        single = os.getenv('PIAZZA_NETWORK_ID')
-        if not single:
-            print("Error: Set PIAZZA_NETWORK_ID or PIAAZZA_NETWORK_IDS in environment.")
-            return
-        network_ids = [single]
+    # get the list of courses from auth.json
+    network_ids = list(auth_map.keys())
+
+    creds = auth_map.get(course_code)
+    if not creds or not creds.get("email") or not creds.get("password"):
+        print(f"Error: missing creds for {course_code} in auth.json")
+        return
+    email = creds["email"]
+    password = creds["password"]
 
     piazza = Piazza()
     piazza.user_login(email=email, password=password)
 
-    data_dir = Path('data')
-    data_dir.mkdir(parents=True, exist_ok=True)
+    course_dir = data_dir / course_code
+    course_dir.mkdir(parents=True, exist_ok=True)
+    storage_file = course_dir / 'posts.json'
 
-    for class_code in network_ids:
-        course_dir = data_dir / class_code
-        course_dir.mkdir(parents=True, exist_ok=True)
-        storage_file = course_dir / 'posts.json'
+    stored = load_stored_posts(storage_file)
+    new_posts, changed_posts = [], []
 
-        stored = load_stored_posts(storage_file)
-        new_posts, changed_posts = [], []
 
-        network = piazza.network(class_code)
-        for summary in network.iter_all_posts(limit=None, sleep=RATE_LIMIT):
-            post_id = str(summary.get('nr'))
-            raw = network.get_post(post_id)
-            post = create_post_from_api(raw)
+    course_dir = data_dir / course_code
+    course_dir.mkdir(parents=True, exist_ok=True)
+    storage_file = course_dir / 'posts.json'
 
-            if post.has_image:
-                post.image_urls = [
-                    PIAZZA_DOMAIN + url if url.startswith('/') else url
-                    for url in post.image_urls
-                ]
+    stored = load_stored_posts(storage_file)
+    new_posts, changed_posts = [], []
 
-            snapshot = {
-                'subject': post.subject,
-                'content': post.content,
-                'has_instructor_answer': post.instructor_answer is not None,
-                'has_instructor_endorsement': post.endorsed_answer is not None,
-                'has_image': post.has_image,
-            }
-            if post.instructor_answer:
-                snapshot['instructor_answer'] = post.instructor_answer
-            if post.endorsed_answer:
-                snapshot['endorsed_answer'] = post.endorsed_answer
-            if post.has_image:
-                snapshot['image_urls'] = post.image_urls
+    network = piazza.network(course_code)
+    for summary in network.iter_all_posts(limit=None, sleep=RATE_LIMIT):
+        post_id = str(summary.get('nr'))
+        raw = network.get_post(post_id)
+        post = create_post_from_api(raw)
 
-            if post_id not in stored:
-                stored[post_id] = snapshot
-                new_posts.append(post)
-            elif stored[post_id] != snapshot:
-                stored[post_id] = snapshot
-                changed_posts.append(post)
+        if post.has_image:
+            post.image_urls = [
+                PIAZZA_DOMAIN + url if url.startswith('/') else url
+                for url in post.image_urls
+            ]
 
-        if new_posts or changed_posts:
-            save_stored_posts(stored, storage_file)
+        snapshot = {
+            'subject': post.subject,
+            'content': post.content,
+            'has_instructor_answer': post.instructor_answer is not None,
+            'has_instructor_endorsement': post.endorsed_answer is not None,
+            'has_image': post.has_image,
+        }
+        if post.instructor_answer:
+            snapshot['instructor_answer'] = post.instructor_answer
+        if post.endorsed_answer:
+            snapshot['endorsed_answer'] = post.endorsed_answer
+        if post.has_image:
+            snapshot['image_urls'] = post.image_urls
 
-        print(f"=== Course: {class_code} ===")
-        if new_posts:
-            print(f"New posts ({len(new_posts)}):")
-            for p in new_posts:
-                print(f"  #{p.number}: {p.subject}")
-        if changed_posts:
-            print(f"Updated posts ({len(changed_posts)}):")
-            for p in changed_posts:
-                print(f"  #{p.number}: {p.subject}")
+        if post_id not in stored:
+            stored[post_id] = snapshot
+            new_posts.append(post)
+        elif stored[post_id] != snapshot:
+            stored[post_id] = snapshot
+            changed_posts.append(post)
+
+    if new_posts or changed_posts:
+        save_stored_posts(stored, storage_file)
+
+    print(f"=== Course: {course_code} ===")
+    if new_posts:
+        print(f"New posts ({len(new_posts)}):")
+        for p in new_posts:
+            print(f"  #{p.number}: {p.subject}")
+    if changed_posts:
+        print(f"Updated posts ({len(changed_posts)}):")
+        for p in changed_posts:
+            print(f"  #{p.number}: {p.subject}")
 
 
 if __name__ == '__main__':
