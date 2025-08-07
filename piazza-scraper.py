@@ -75,7 +75,13 @@ def main():
     network = piazza.network(course_code)
     for summary in network.iter_all_posts(limit=None, sleep=RATE_LIMIT):
         post_id = str(summary.get('nr'))
-        raw = network.get_post(post_id)
+        try:
+            raw = network.get_post(post_id)
+        except Exception as e:
+            resp = network._rpc.last_response  # assuming the RPC client stores it
+            print("STATUS:", resp.status_code)
+            print("BODY:", resp.text[:500])
+            raise
         post = create_post_from_api(raw)
 
         if post.has_image:

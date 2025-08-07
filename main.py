@@ -3,10 +3,9 @@ import re
 import hashlib
 from pathlib import Path
 import time
-import os
 
 import nltk
-nltk.download('punkt_tab')
+nltk.download('punkt_tab', quiet=True)
 from langchain.text_splitter import NLTKTextSplitter
 
 from langchain_core.documents import Document
@@ -19,6 +18,9 @@ import requests
 from rank_bm25 import BM25Okapi
 
 from dotenv import load_dotenv
+
+import logging
+logging.disable(logging.WARNING)
 
 # load openai key
 load_dotenv()
@@ -52,10 +54,9 @@ json_path = base_dir / "posts.json"
 llm_vision = ChatOpenAI(model_name="gpt-4o-mini")
 
 # setup langchain sentence splitters
-splitter_2 = NLTKTextSplitter(chunk_size=20, chunk_overlap=12)
-splitter_3 = NLTKTextSplitter(chunk_size=25, chunk_overlap=15)
+splitter = NLTKTextSplitter(chunk_size=1, chunk_overlap=0)
 
-# helper: compute hash of a file to detect changes
+# compute hash of a file to detect changes
 def sha1_of_file(path: str) -> str:
     h = hashlib.sha1()
     with open(path, 'rb') as f:
@@ -105,7 +106,6 @@ else:
     documents = []
     post_texts = []
     post_ids = []
-    print("Splitting posts into sliding window chunks.")
     for post_id, post in data.items():
         subj = post.get('subject', '').strip()
         cont = post.get('content', '').strip()
@@ -121,7 +121,7 @@ else:
         for redirect_url in image_urls:
             try:
                 cdn_url = to_cdn_url(redirect_url)
-                img_bytes = httpx.get(cdn_url, follow_redirects=True).content
+                img_bytes = httpx.get(cdn_url, follow_redirects=True, timeout=10).content
                 image_data = base64.b64encode(img_bytes).decode("utf-8")
                 message = {
                     "role": "user",
@@ -134,15 +134,14 @@ else:
                 time.sleep(1)
                 captions.append(resp.text())
             except Exception as e:
-                print(f"Image caption failed for {redirect_url}: {e}")
+                print(f"\n#{post_id}: Image caption failed for {redirect_url}: {e}")
         if captions:
             full = full + ' ' + ' '.join(captions)
 
         # clean, chunk, and collect documents
         clean = clean_text(full)
-        chunks_2 = splitter_2.split_text(clean)
-        chunks_3 = splitter_3.split_text(clean)
-        for idx, chunk in enumerate(chunks_2 + chunks_3):
+        chunks = splitter.split_text(clean)
+        for idx, chunk in enumerate(chunks):
             documents.append(Document(
                 page_content=chunk,
                 metadata={'post_id': post_id, 'subject': subj, 'idx': idx}
