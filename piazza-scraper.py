@@ -14,8 +14,8 @@ warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 # --- CONFIGURATION ---
 AUTH_PATH = Path("auth.json")
 PIAZZA_DOMAIN = "https://piazza.com"
-RATE_LIMIT = 2.0 # seconds between API calls
-SCRAPE_INTERVAL = 5 * 60 # seconds between runs
+RATE_LIMIT = 2.0        # seconds between API calls
+SCRAPE_INTERVAL = 5 * 60  # seconds between runs
 
 # load credentials map
 if not AUTH_PATH.exists():
@@ -26,8 +26,8 @@ auth_map = json.loads(AUTH_PATH.read_text())
 
 def process_course(course_code: str, creds: dict):
     """
-    Log into Piazza for course_code, look for only the newest posts (stopping
-    at the first already-stored post), save them, and print a summary.
+    Log into Piazza for course_code, look for only the newest posts (skipping pinned posts),
+    stopping at the first already-stored post, save them, and print a summary.
     """
     # prepare storage
     course_dir = Path("data") / course_code
@@ -42,20 +42,20 @@ def process_course(course_code: str, creds: dict):
     piazza.user_login(email=creds["email"], password=creds["password"])
     network = piazza.network(course_code)
 
-    print(f"→ Processing {course_code}, stored posts: {len(stored)}")
-
-    # iterate newest→oldest, stop once we hit a persisted post
+    # iterate newest to oldest, skipping pinned posts, stop once we hit a persisted post
     for summary in network.iter_all_posts(limit=None, sleep=RATE_LIMIT):
+        # skip any pinned posts so they don't interrupt the chronological check
+        if summary.get("bucket_name") == "Pinned" or "pin" in summary.get("tags", []):
+            continue
+
         post_id = str(summary.get("nr"))
-        print(f"   Checking post #{post_id} …", end="")
         if post_id in stored:
-            print(" already stored, stopping.")
             break
 
         raw = network.get_post(post_id)
         post = create_post_from_api(raw)
 
-        # rewrite image URLs to full cdn links
+        # rewrite image URLs to full CDN links
         if post.has_image:
             post.image_urls = [
                 PIAZZA_DOMAIN + url if url.startswith("/") else url
@@ -92,13 +92,6 @@ def process_course(course_code: str, creds: dict):
                 reordered[pid] = snapshot
         save_stored_posts(reordered, storage_file)
 
-    # print a quick summary
-    if new_posts:
-        print(f"=== Course: {course_code} ===")
-        print(f"New posts: {len(new_posts)}")
-        for p in new_posts:
-            print(f"  • #{p.number}: {p.subject}")
-
 
 if __name__ == "__main__":
     while True:
@@ -109,5 +102,5 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"[ERROR] {course_code}: {e}")
 
-        print(f"Waiting {SCRAPE_INTERVAL} seconds until next run…")
+        print(f"Waiting {SCRAPE_INTERVAL} seconds until next update...")
         time.sleep(SCRAPE_INTERVAL)
