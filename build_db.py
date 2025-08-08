@@ -85,7 +85,7 @@ def update_database():
                         time.sleep(1)
                         captions.append(resp.text())
                     except Exception as e:
-                        print(f"#{pid}: caption failed: {e}")
+                        print(f"\n#{pid}: Image caption failed for {cdn}: {e}")
                 if captions:
                     full += ' ' + ' '.join(captions)
 
@@ -132,8 +132,8 @@ def update_database():
                     ]}
                     r=llm_vision.invoke([msg]); time.sleep(1)
                     caps.append(r.text())
-                except:
-                    pass
+                except Exception as e:
+                    print(f"\n#{pid}: Image caption failed for {cdn}: {e}") #retry if i get rate limit exceed
             if caps:
                 full += ' ' + ' '.join(caps)
 
