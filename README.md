@@ -1,8 +1,10 @@
 # PiazzaPlus  
 > **A hybrid semantic + keyword search engine for Piazza discussion forums**  
 > **Disclaimer:** *PiazzaPlus is an independent, open-source project and is not affiliated with or endorsed by Piazza.*
+> **Download my version [here](chrome://extensions/)**
 
-![Extension Screenshot](piazza-chrome-extension/screenshot.png)
+
+![Extension Screenshot](screenshot.png)
 
 ---
 
@@ -112,10 +114,44 @@ python search.py
 python api.py
 ```
 - Starts the Flask API so the browser extension can connect.
-- The server host and port are **set directly in the frontend code**. You may edit these values in `popup.js` and `manifest.json`.
+- The server host and port are **set directly in the frontend code**. Edit these values in `popup.js` and `manifest.json` to your own deployment server.
 
-### :two: Frontend Setup (for Google Chrome)
+### 2️⃣ Frontend Setup (for Google Chrome)
 1. Open `chrome://extensions` in Chrome.
 2. Enable **Developer mode** (top right).
 3. Click **Load unpacked** (top left) and select the `frontend` folder.
 4. By default, the frontend connects to the backend URL specified in `popup.js` and `manifest.json`.
+
+---
+
+## 📄 Usage
+1. Click the PiazzaPlus extension icon.
+2. Enter a Piazza **Network ID** that you have access to (hover over the question mark tooltip to learn how to find it) and click **Next**.
+3. Type your query in plain English and click **Search**.
+4. Get top 10 most relevant results with clickable links to original Piazza posts.
+
+---
+
+## 🔒 Notes on Configuration
+- Unlike some projects, there is no **config.js** file.
+- The backend server hostname and port are set directly in `popop.js` and `manifest.json`.
+- To deploy to a different server, simply update those files manually.
+
+---
+
+## 🧠 How the Hybrid Search Works
+- **Sentence embeddings** (via a transformer model) capture semantic meaning.
+- A loose **BM25** keyword match filters out posts from the semantic list that are not in the top 100 of keyword searching.
+- This balances precision and recall.
+
+---
+
+## ⚠️ Disclaimer
+PiazzaPlus is an **independent** project:
+- It does not store or transmit your Piazza credentials.
+- It is **not affiliated with or endorsed by** Piazza.
+
+---
+
+## 📚 License
+**MIT License** — free to use, modify, and share.
