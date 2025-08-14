@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PiazzaPlus (Unofficial)</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <button id="back-btn" class="icon-btn" aria-label="Back" title="Back">←</button>
+      <h1>PiazzaPlus (Unofficial)</h1>
+      <button id="close-popup" class="icon-btn" aria-label="Close" title="Close">×</button>
+    </div>
+
+    <!-- NETWORK-ID SCREEN -->
+    <div id="network-section">
+      <label for="network-id">
+        Course Network ID:
+        <span class="info-icon" id="netinfo">?
+          <span class="tooltip">
+            Find this in your URL after <code>/class/</code><br />
+            e.g. https://piazza.com/class/<strong>network_id</strong>/…
+          </span>
+        </span>
+      </label>
+      <input type="text" id="network-id" placeholder="e.g. vhcn3jc81h33mc" />
+      <button type="button" id="next-btn">Next</button>
+    </div>
+
+    <!-- QUERY SCREEN -->
+    <div id="query-section" class="hidden">
+      <label for="query">Question:</label>
+      <textarea id="query" rows="2" placeholder="Type your question..."></textarea>
+      <button type="button" id="search-btn">Search</button>
+
+      <div id="results" class="hidden">
+        <h2>Recommended Posts</h2>
+        <ul id="results-list"></ul>
+      </div>
+    </div>
+    <div class="disclaimer">PiazzaPlus is an independent, unofficial project and is not affiliated with or endorsed by
+      Piazza.</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
