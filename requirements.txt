@@ -1,11 +1,10 @@
-# piazza-scraper.py dependencies
 nltk
 piazza-api
 beautifulsoup4
 python-dotenv
-
-# main.py dependencies
 langchain
 langchain-chroma
 langchain-openai
 rank_bm25
+flask
+flask_cors
