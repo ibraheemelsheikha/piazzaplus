@@ -47,8 +47,8 @@ User enters Network ID & query
 - **`scraper.py`** — Logs into Piazza using credentials in `auth.json`, fetches posts for each registered course, and scrapes new posts every five minutes.  
 - **`build_db.py`** — Vectorizes all scraped posts and builds the hybrid index (BM25 + embeddings), and vectorizes new posts every five minutes.  
 - **`search.py`** — Executes a hybrid search over the vectorized posts.
-- **`search_lib.py` — The hybrid searching function.
-- **`utils.py` — Helper functions to modulate code.
+- **`search_lib.py`** — The hybrid searching function.
+- **`utils.py`** — Helper functions to modulate code.
 - **`api.py`** — Flask server exposing endpoints:  
   - `GET /is-registered` — checks if a network ID exists in `auth.json`  
   - `GET /search` — runs hybrid retrieval and returns top results  
