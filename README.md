@@ -65,9 +65,17 @@ User enters Network ID & query
 ### 1️⃣ Backend Setup
 #### Requirements:
 - Python 3.13+
-- `pip install -r requirements.txt`
 - Piazza account + credentials for scraping.
 - OpenAI API key set up in a `.env`.
+
+```bash
+# clone repo
+git clone https://github.com/yourusername/piazzaplus.git
+cd piazzaplus/backend
+
+# install dependencies
+pip install -r requirements.txt
+```
 
 #### Step 1: Configure `auth.json`
 Create a file called `auth.json` in the `backend` folder with the following format:
