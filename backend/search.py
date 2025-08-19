@@ -44,10 +44,20 @@ vector_database = Chroma(
 # bm25 indexing
 with open(json_path, 'r', encoding='utf-8') as f:
     data = json.load(f)
-post_texts = [' '.join(filter(None, [
-    p.get('subject',''), p.get('content',''),
-    p.get('instructor_answer',''), p.get('endorsed_answer','')
-])) for p in data.values()]
+post_texts = []
+for p in data.values():
+    if "full_text" in p:
+        txt = p["full_text"]
+    else:
+        txt = ' '.join(filter(None, [
+            p.get('subject',''),
+            p.get('content',''),
+            p.get('instructor_answer',''),
+            p.get('endorsed_answer',''),
+            ' '.join(p.get('captions', []))
+        ]))
+    post_texts.append(txt)
+
 post_ids = list(data.keys())
 tokenized_corpus = [re.findall(r"[A-Za-z]+|\d+", txt.lower()) for txt in post_texts]
 bm25 = BM25Okapi(tokenized_corpus)

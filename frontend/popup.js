@@ -38,13 +38,6 @@ async function isRegisteredNetwork(id) {
   return !!j.registered;
 }
 
-// prefill saved network id if present
-try {
-  chrome?.storage?.local.get(['networkId'], ({ networkId }) => {
-    if (networkId) document.getElementById('network-id').value = networkId;
-  });
-} catch { }
-
 // after entering network id, go to query page (only if registered)
 nextBtn.addEventListener('click', async () => {
   const netId = document.getElementById('network-id').value.trim();
@@ -90,7 +83,7 @@ searchBtn.addEventListener('click', async () => {
     if (!res.ok) throw new Error(data.error || 'Search failed');
 
     // render results as links
-    resultsList.innerHTML = '';
+
     const urlBase = `https://piazza.com/class/${encodeURIComponent(netId)}/post/`;
 
     for (const item of data.results) {

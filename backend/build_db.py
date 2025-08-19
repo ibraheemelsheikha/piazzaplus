@@ -78,7 +78,7 @@ def update_database():
                         img = httpx.get(cdn, follow_redirects=True, timeout=10).content
                         enc = base64.b64encode(img).decode('utf-8')
                         msg = {"role":"user","content":[
-                            {"type":"text","text":"Describe this image for course content, transcribe text, up to 250 words."},
+                            {"type":"text","text":"Please describe this image to someone who is struggling in the course. Please describe all drawings and transcribe any text. Use up to 200 words."},
                             {"type":"image","source_type":"base64","data":enc,"mime_type":"image/png"},
                         ]}
                         resp = llm_vision.invoke([msg])
@@ -88,6 +88,8 @@ def update_database():
                         print(f"\n#{pid}: Image caption failed for {cdn}: {e}")
                 if captions:
                     full += ' ' + ' '.join(captions)
+                    post['captions'] = captions
+                    post['full_text'] = full + " " + " ".join(captions)
 
                 # chunk & embed
                 chunks = splitter.split_text(clean_text(full))
@@ -99,6 +101,8 @@ def update_database():
 
             # save vectorized IDs
             Path(vector_file).write_text(json.dumps(list(vectorized_ids), indent=2), encoding='utf-8')
+
+            Path(json_path).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
 
         # update hash
         hash_file.write_text(current_hash)
@@ -127,7 +131,7 @@ def update_database():
                     img = httpx.get(cdn, follow_redirects=True, timeout=10).content
                     enc = base64.b64encode(img).decode('utf-8')
                     msg={"role":"user","content":[
-                        {"type":"text","text":"Describe this image for course content, transcribe text, up to 250 words."},
+                        {"type":"text","text":"Please describe this image to someone who is struggling in the course. Please describe all drawings and transcribe any text. Use up to 200 words."},
                         {"type":"image","source_type":"base64","data":enc,"mime_type":"image/png"},
                     ]}
                     r=llm_vision.invoke([msg]); time.sleep(1)
@@ -136,6 +140,8 @@ def update_database():
                     print(f"\n#{pid}: Image caption failed for {cdn}: {e}") #retry if i get rate limit exceed
             if caps:
                 full += ' ' + ' '.join(caps)
+                post['captions'] = caps
+                post['full_text'] = full + " " + " ".join(caps)
 
             # chunk
             for i,chunk in enumerate(splitter.split_text(clean_text(full))):
@@ -153,6 +159,7 @@ def update_database():
         current_hash = sha1_of_file(str(json_path))
         hash_file.write_text(current_hash)
         Path(vector_file).write_text(json.dumps(list(data.keys()), indent=2), encoding='utf-8')
+        Path(json_path).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
         elapsed = time.perf_counter() - start
         print(f"Initial build done in {elapsed:.2f}s.")
 
