@@ -57,6 +57,9 @@ searchBtn.addEventListener('click', async () => {
   const q = document.getElementById('query').value.trim();
   if (!q) { alert('Please type a question.'); return; }
 
+  resultsList.innerHTML = '';
+  resultsDiv.classList.add('hidden');
+  resultsList.scrollTop = 0;
   // get the network id
   let netId = document.getElementById('network-id').value.trim();
   if (!netId) {
@@ -77,7 +80,7 @@ searchBtn.addEventListener('click', async () => {
     const res = await fetch(`${API_BASE}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ network_id: netId, query: q, k: 10 })
+      body: JSON.stringify({ network_id: netId, query: q, k: 20 })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Search failed');
@@ -95,12 +98,7 @@ searchBtn.addEventListener('click', async () => {
       a.rel = 'noopener noreferrer';
       a.textContent = `#${item.post_id}: ${item.subject}`;
 
-      const score = document.createElement('span');
-      score.style.opacity = '0.6';
-      score.textContent = ` (score: ${item.score.toFixed(4)})`;
-
       li.appendChild(a);
-      li.appendChild(score);
       resultsList.appendChild(li);
     }
     resultsDiv.classList.remove('hidden');
