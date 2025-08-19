@@ -202,3 +202,36 @@ textarea {
     max-height: 100px;
     overflow-y: auto;
 }
+
+#network-id,
+#query,
+#next-btn,
+#search-btn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+#network-id,
+#query {
+  border-radius: 8px;
+  padding: 10px 14px;
+  border: 1px solid #ccc;
+}
+
+#network-id,
+#query,
+#next-btn,
+#search-btn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#query {
+  margin-bottom: 10px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  border: 1px solid #ccc;
+}
