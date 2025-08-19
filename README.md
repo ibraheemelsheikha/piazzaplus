@@ -2,7 +2,7 @@
 > **A hybrid semantic + keyword search engine for Piazza discussion forums**  
 > **Disclaimer:** *PiazzaPlus is an independent, open-source project and is not affiliated with or endorsed by Piazza.*
 
-> **Temporary note: The official Chrome extension is pending review from the Chrome Webstore. For now, to use the extension, head to ```chrome://extensions/```, turn on "Developer mode," and click "Load unpacked." Upload the ```frontend``` folder as is.**
+> **Download my version [here](https://chromewebstore.google.com/detail/piazzaplus/negphehjimfmgjijfmmocokgfhglclim)**
 
 
 ![Extension Screenshot](screenshot.png)
