@@ -2,7 +2,7 @@
 > **A hybrid semantic + keyword search engine for Piazza discussion forums**  
 > **Disclaimer:** *PiazzaPlus is an independent, open-source project and is not affiliated with or endorsed by Piazza.*
 
-> **Download my version [here](https://chromewebstore.google.com/detail/piazzaplus/negphehjimfmgjijfmmocokgfhglclim)**
+> **[Download my version from the Chrome Webstore here.](https://chromewebstore.google.com/detail/piazzaplus/negphehjimfmgjijfmmocokgfhglclim)**
 
 
 ![Extension Screenshot](screenshot.png)
