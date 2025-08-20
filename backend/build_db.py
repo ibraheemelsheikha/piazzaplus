@@ -12,15 +12,22 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from rank_bm25 import BM25Okapi
 from utils import sha1_of_file, clean_text, to_cdn_url, splitter
 
-# Silence overly verbose logs
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("build_db.log", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
+
 logging.disable(logging.WARNING)
 
-# Load environment and credentials
+# load environment and credentials
 load_dotenv()
 with open("auth.json", "r", encoding="utf-8") as f:
     auth_map = json.load(f)
 
-# Constants and shared models
 SCRAPE_INTERVAL = 5 * 60  # seconds between updates
 embedding_model = OpenAIEmbeddings(model="text-embedding-3-large")
 llm_vision = ChatOpenAI(model_name="gpt-4o-mini")
@@ -86,6 +93,7 @@ def update_database():
                         captions.append(resp.text())
                     except Exception as e:
                         print(f"\n#{pid}: Image caption failed for {cdn}: {e}")
+                        logging.error(f"\nFor course: {course_code}, post #{pid}: Image caption failed for {cdn}: {e}", exc_info=True)
                 if captions:
                     full += ' ' + ' '.join(captions)
                     post['captions'] = captions
@@ -137,7 +145,8 @@ def update_database():
                     r=llm_vision.invoke([msg]); time.sleep(1)
                     caps.append(r.text())
                 except Exception as e:
-                    print(f"\n#{pid}: Image caption failed for {cdn}: {e}") #retry if i get rate limit exceed
+                    print(f"\n#{pid}: Image caption failed for {cdn}: {e}") # future work: retry if i get rate limit exceed
+                    logging.error(f"\nFor course: {course_code}, post #{pid}: Image caption failed for {cdn}: {e}", exc_info=True)
             if caps:
                 full += ' ' + ' '.join(caps)
                 post['captions'] = caps
@@ -186,6 +195,7 @@ if __name__ == "__main__":
                 update_database()
             except Exception as e:
                 print(f"[ERROR] {course_code}: {e}")
+                logging.error(f"\n[ERROR] {course_code}: {e}", exc_info=True)
 
         print(f"Waiting {SCRAPE_INTERVAL} seconds until next update...")
         time.sleep(SCRAPE_INTERVAL)
