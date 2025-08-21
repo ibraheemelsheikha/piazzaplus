@@ -22,6 +22,7 @@ body {
 
 .disclaimer {
     margin-top: 10px;
+    margin-bottom: 6px;
     font-size: 11px;
     line-height: 1.3;
     color: #666;
@@ -71,7 +72,7 @@ textarea {
 }
 
 button {
-    margin-top: 12px;
+    margin-top: 24px;
     padding: 8px;
     width: 100%;
     border: none;
@@ -184,10 +185,6 @@ button:hover {
     cursor: default;
 }
 
-textarea {
-  font-family: inherit;
-}
-
 textarea::placeholder {
     font-family: inherit;
 }
@@ -196,6 +193,7 @@ textarea {
     resize: both;
     max-width: 280px;
     max-height: 150px;
+    font-family: inherit;
 }
 
 #results-list {
@@ -207,31 +205,19 @@ textarea {
 #query,
 #next-btn,
 #search-btn {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
 }
 
 #network-id,
 #query {
-  border-radius: 8px;
-  padding: 10px 14px;
-  border: 1px solid #ccc;
-}
-
-#network-id,
-#query,
-#next-btn,
-#search-btn {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
+    border-radius: 8px;
+    padding: 10px 14px;
+    border: 1px solid #ccc;
 }
 
 #query {
-  margin-bottom: 10px;
-  border-radius: 8px;
-  padding: 10px 14px;
-  border: 1px solid #ccc;
+    margin-bottom: 10px;
 }
