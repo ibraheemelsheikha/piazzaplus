@@ -117,10 +117,10 @@ resultsList.addEventListener('click', (e) => {
 
   const url = a.href;
 
-  // update current active tab
-  if (chrome?.tabs?.update) {
-    chrome.tabs.update({ url, active: true });
+  // open in background
+  if (chrome?.tabs?.create) {
+    chrome.tabs.create({ url, active: false });
   } else {
-    window.location.href = url;
+    window.open(url, '_blank');
   }
 });

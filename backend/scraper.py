@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 AUTH_PATH = Path("auth.json")
 PIAZZA_DOMAIN = "https://piazza.com"
 RATE_LIMIT = 2.0 # seconds between API calls
-SCRAPE_INTERVAL = 5 * 60 # seconds between runs
+SCRAPE_INTERVAL = 10 * 60 # seconds between runs
 REFRESH_WINDOW = timedelta(days=7) # how far back to refresh existing posts
 
 # load credentials map
