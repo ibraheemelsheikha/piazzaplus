@@ -7,7 +7,7 @@ from piazza_api import Piazza
 from bs4 import MarkupResemblesLocatorWarning
 from utils import save_stored_posts, load_stored_posts
 from post import create_post_from_api
-from datetime import datetime, timezone, timedelta  # NEW
+from datetime import datetime, timezone, timedelta
 
 # suppress html parsing warnings
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
@@ -28,14 +28,19 @@ auth_map = json.loads(AUTH_PATH.read_text())
 
 def process_course(course_code: str, creds: dict):
     """
-    Log into Piazza for course_code, look for only the newest posts (skipping pinned posts),
-    refreshing only posts created within the REFRESH_WINDOW, save them, and print a summary.
+    Log into Piazza for course_code, scrape newest->oldest.
+    - First run: scrape ALL posts (including pinned).
+    - Subsequent runs: skip pinned; refresh anything created within REFRESH_WINDOW;
+      and stop early once we hit the first non-pinned post that is older than the window AND already stored.
     """
     # prepare storage
     course_dir = Path("data") / course_code
     course_dir.mkdir(parents=True, exist_ok=True)
     storage_file = course_dir / "posts.json"
-    stored = load_stored_posts(storage_file)
+
+    # determine first-run BEFORE loading (load_stored_posts may create the file)
+    first_run = not storage_file.exists()
+    stored = load_stored_posts(storage_file)  # dict[str, snapshot]
 
     new_posts = []
 
@@ -46,37 +51,43 @@ def process_course(course_code: str, creds: dict):
 
     cutoff = datetime.now(timezone.utc) - REFRESH_WINDOW
 
-    # iterate newest to oldest, skipping pinned posts
+    # iterate newest to oldest
     for summary in network.iter_all_posts(limit=None, sleep=RATE_LIMIT):
-        if summary.get("bucket_name") == "Pinned" or "pin" in summary.get("tags", []):
-            continue
-
         post_id = str(summary.get("nr"))
 
-        # parse creation time
+        # parse creation time from summary
         created_str = summary.get("created")
         created = None
         if created_str:
             try:
-                # Piazza timestamps look like "2025-01-15T03:44:57Z"
                 created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-                print(f"coruse code: {course_code}, post id: {post_id}, post was created at: {created}")
             except Exception:
                 created = None
 
-        # skip old posts that are already stored
-        if created and created < cutoff and post_id in stored:
-            print(f"skipping post {post_id} because it is older than 7 days")
+        if not first_run and stored.get(post_id, {}).get("is_pinned", False):
+            continue
+
+        raw = network.get_post(post_id)
+        is_pinned = bool(raw.get("is_pinned", False))
+
+        # on subsequent runs, skip pinned posts entirely
+        if not first_run and is_pinned:
+            if post_id in stored and not stored[post_id].get("is_pinned", False):
+                stored[post_id]["is_pinned"] = True
+                new_posts.append(create_post_from_api(raw))
+            continue
+
+        if not first_run and created and created < cutoff and post_id in stored:
+            print(f"stopping at post {post_id} in course {course_code} because it is older than 7 days")
             break
 
-        # fetch post
-        raw = network.get_post(post_id)
+        # build post object
         post = create_post_from_api(raw)
 
         # rewrite image urls to full cdn links
         if post.has_image:
             post.image_urls = [
-                PIAZZA_DOMAIN + url if url.startswith("/") else url
+                PIAZZA_DOMAIN + url if isinstance(url, str) and url.startswith("/") else url
                 for url in post.image_urls
             ]
 
@@ -87,6 +98,7 @@ def process_course(course_code: str, creds: dict):
             "has_instructor_answer": post.instructor_answer is not None,
             "has_instructor_endorsement": post.endorsed_answer is not None,
             "has_image": post.has_image,
+            "is_pinned": is_pinned,
         }
         if post.instructor_answer:
             snapshot["instructor_answer"] = post.instructor_answer
@@ -102,13 +114,15 @@ def process_course(course_code: str, creds: dict):
 
     # persist only if there are new/updated posts
     if new_posts:
-        new_ids = [str(p.number) for p in new_posts]
+        new_ids = [str(p.number) for p in new_posts if hasattr(p, "number")]
         reordered = {}
         for pid in new_ids:
-            reordered[pid] = stored[pid]
+            if pid in stored:
+                reordered[pid] = stored[pid]
         for pid, snapshot in stored.items():
-            if pid not in new_ids:
+            if pid not in reordered:
                 reordered[pid] = snapshot
+
         save_stored_posts(reordered, storage_file)
 
 
