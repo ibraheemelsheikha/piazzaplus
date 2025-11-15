@@ -1,93 +1,31 @@
 import json
-import re
-from pathlib import Path
 import time
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-from rank_bm25 import BM25Okapi
+from pathlib import Path
 from dotenv import load_dotenv
 
-# load openai key
+# use the same search pipeline as the API
+from search_lib import search_top_k
+
+# load OPENAI_API_KEY from .env
 load_dotenv()
 
 # get course nid from auth.json
 with open("auth.json", "r", encoding="utf-8") as f:
     auth_map = json.load(f)
+
 course_code = input("Enter course network ID: ").strip()
 if course_code not in auth_map:
     raise KeyError(f"Course network ID {course_code} not found in auth.json")
 
-# base data directory
-data_dir = Path('data')
-data_dir.mkdir(parents=True, exist_ok=True)
-
-if course_code:
-    base_dir = data_dir / course_code
-else:
-    base_dir = data_dir
-
-# ensure base directory exists
-base_dir.mkdir(parents=True, exist_ok=True)
-
-# setup paths and embedding model
-embedding_model = OpenAIEmbeddings(model="text-embedding-3-large")
-persist_dir = base_dir / "db"
-json_path = base_dir / "posts.json"
-
-# load or fail if no DB
-vector_database = Chroma(
-    persist_directory=str(persist_dir),
-    embedding_function=embedding_model,
-    collection_metadata={"hnsw:space":"cosine"}
-)
-
-# bm25 indexing
-with open(json_path, 'r', encoding='utf-8') as f:
-    data = json.load(f)
-post_texts = []
-for p in data.values():
-    if "full_text" in p:
-        txt = p["full_text"]
-    else:
-        txt = ' '.join(filter(None, [
-            p.get('subject',''),
-            p.get('content',''),
-            p.get('instructor_answer',''),
-            p.get('endorsed_answer',''),
-            ' '.join(p.get('captions', []))
-        ]))
-    post_texts.append(txt)
-
-post_ids = list(data.keys())
-tokenized_corpus = [re.findall(r"[A-Za-z]+|\d+", txt.lower()) for txt in post_texts]
-bm25 = BM25Okapi(tokenized_corpus)
-
-# query & retrieval
+# get query
 prep_start = time.perf_counter()
-query = input("Enter query: ")
+query = input("Enter query: ").strip()
 prep_end = time.perf_counter()
 print(f"Query input received in {prep_end - prep_start:.2f} seconds.")
 
-# bm25 stage
-tokens = re.findall(r"[A-Za-z]+|\d+", query.lower())
-bm25_ids = bm25.get_top_n(tokens, post_ids, n=100)
-bm25_set = set(bm25_ids)
+results = search_top_k(course_code, query, k=10)
 
-# semantic stage
-results = vector_database.similarity_search_with_score(query, k=100)
-results = [(d, dist) for d, dist in results if d.metadata['post_id'] in bm25_set]
-
-# Score & output
-post_scores = {}
-for d, dist in results:
-    sim = 1.0 - dist
-    pid = d.metadata['post_id']
-    subj = d.metadata['subject']
-    post_scores.setdefault(pid, {'subject': subj, 'score': sim})
-    post_scores[pid]['score'] = max(post_scores[pid]['score'], sim)
-
-# output top results
-top_posts = sorted(post_scores.items(), key=lambda x: x[1]['score'], reverse=True)
+# print results in the same style as before
 print("Retrieval complete. Top 10 posts:")
-for idx, (pid, info) in enumerate(top_posts[:10], start=1):
-    print(f"{idx}. Post #{pid} — {info['subject']} (score: {info['score']:.4f})")
+for idx, item in enumerate(results[:10], start=1):
+    print(f"{idx}. Post #{item['post_id']} — {item['subject']} (score: {item['score']:.4f})")
