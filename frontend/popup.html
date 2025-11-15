@@ -17,19 +17,33 @@
     </div>
 
     <!-- NETWORK-ID SCREEN -->
+    <!-- NETWORK-ID SCREEN -->
     <div id="network-section">
-      <label for="network-id">
-        Course Network ID:
-      </label>
-      <input type="text" id="network-id" placeholder="e.g. vhcn3jc81h33mc" />
-      <div class="disclaimer" style="margin-top:6px; text-align:left;">
-        e.g. https://piazza.com/class/<strong><u>vhcn3jc81h33mc</u></strong>/
+      <div class="field">
+        <label for="network-id">Piazza course network ID</label>
+        <input type="text" id="network-id" placeholder="e.g. vhcn3jc81h33mc" autocomplete="off" />
+        <div class="disclaimer" style="margin-top:6px; text-align:left;">
+          e.g. https://piazza.com/class/<strong><u>vhcn3jc81h33mc</u></strong>/
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="course-label">
+          Course code to save (optional)
+          <span class="hint">(e.g. APS105)</span>
+        </label>
+        <input type="text" id="course-label" placeholder="e.g. APS105" autocomplete="off" />
+      </div>
+
+      <div id="saved-courses" class="hidden">
+        <h2>Saved courses</h2>
+        <ul id="saved-courses-list"></ul>
       </div>
 
       <button type="button" id="next-btn">Next</button>
     </div>
 
-    <!-- QUERY SCREEN -->
+    <!-- QUERY SCREEN (now a sibling of #network-section) -->
     <div id="query-section" class="hidden">
       <label for="query">Question:</label>
       <textarea id="query" rows="2" placeholder="Type your question..."></textarea>
@@ -40,10 +54,14 @@
         <ul id="results-list"></ul>
       </div>
     </div>
-    <div class="disclaimer">PiazzaPlus is an independent, unofficial project and is not affiliated with or endorsed by
-      Piazza. To give feedback or suggestions for course support, please email piazzabot.ece@utoronto.ca with the
-      subject "PiazzaPlus."</div>
-  </div>
+
+    <div class="disclaimer">
+      PiazzaPlus is an independent, unofficial project and is not affiliated
+      with or endorsed by Piazza. To give feedback or suggestions for course
+      support, please email piazzabot.ece@utoronto.ca with the subject
+      "PiazzaPlus."
+    </div>
+  </div> <!-- end .container -->
 
   <script src="popup.js"></script>
 </body>

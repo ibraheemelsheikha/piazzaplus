@@ -11,6 +11,11 @@ const API_BASE = "http://aps105.ece.utoronto.ca:61427/api";
 const backBtn = document.getElementById('back-btn');
 const closeBtn = document.getElementById('close-popup');
 
+const networkInput = document.getElementById('network-id');
+const courseLabelInput = document.getElementById('course-label');
+const savedCoursesSection = document.getElementById('saved-courses');
+const savedCoursesList = document.getElementById('saved-courses-list');
+
 // init header button states
 if (backBtn) backBtn.style.display = 'none';
 
@@ -31,6 +36,60 @@ netInfo?.addEventListener('click', () => {
   netInfo.classList.toggle('show');
 });
 
+function loadSavedCourses() {
+  if (!chrome?.storage?.local) return;
+
+  chrome.storage.local.get(['savedCourses', 'networkId'], (data) => {
+    const saved = data.savedCourses || {};
+    const entries = Object.values(saved);
+
+    if (!entries.length) {
+      savedCoursesSection.classList.add('hidden');
+      savedCoursesList.innerHTML = '';
+      return;
+    }
+
+    entries.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+
+    savedCoursesSection.classList.remove('hidden');
+    savedCoursesList.innerHTML = '';
+
+    for (const course of entries) {
+      const li = document.createElement('li');
+      li.className = 'saved-course';
+      li.dataset.nid = course.networkId;
+      li.textContent = course.displayName || course.networkId;
+
+      li.tabIndex = 0;
+      li.setAttribute('role', 'button');
+      li.title = 'Click to select this course';
+
+      savedCoursesList.appendChild(li);
+    }
+  });
+}
+
+function saveCourse(networkId, displayName) {
+  return new Promise((resolve) => {
+    if (!chrome?.storage?.local) return resolve();
+
+    chrome.storage.local.get(['savedCourses'], (data) => {
+      const saved = data.savedCourses || {};
+
+      saved[networkId] = {
+        networkId,
+        displayName: displayName || networkId,
+        lastUsed: Date.now(),
+      };
+
+      chrome.storage.local.set(
+        { savedCourses: saved, networkId },
+        () => resolve()
+      );
+    });
+  });
+}
+
 // registration check
 async function isRegisteredNetwork(id) {
   const r = await fetch(`${API_BASE}/is-registered?network_id=${encodeURIComponent(id)}`);
@@ -40,11 +99,17 @@ async function isRegisteredNetwork(id) {
 
 // after entering network id, go to query page (only if registered)
 nextBtn.addEventListener('click', async () => {
-  const netId = document.getElementById('network-id').value.trim();
+  const netId = networkInput.value.trim();
   if (!netId) { alert('Please enter your Course Network ID.'); return; }
 
   const ok = await isRegisteredNetwork(netId);
   if (!ok) { alert('This course is not registered yet.'); return; }
+
+  const displayName =
+    (courseLabelInput && courseLabelInput.value.trim()) || netId;
+
+  await saveCourse(netId, displayName);
+  loadSavedCourses(); // refresh the list in the UI
 
   chrome?.storage?.local.set({ networkId: netId });
   networkSection.classList.add('hidden');
@@ -109,6 +174,31 @@ searchBtn.addEventListener('click', async () => {
     searchBtn.textContent = oldText;
   }
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSavedCourses();
+});
+
+// clicking a saved course fills fields
+if (savedCoursesList) {
+  savedCoursesList.addEventListener('click', (e) => {
+    const li = e.target.closest('.saved-course');
+    if (!li) return;
+
+    const nid = li.dataset.nid;
+    if (!nid) return;
+
+    // Fill the network ID and label fields
+    if (networkInput) {
+      networkInput.value = nid;
+    }
+    if (courseLabelInput) {
+      courseLabelInput.value = li.textContent || '';
+    }
+
+    nextBtn?.click();
+  });
+}
 
 resultsList.addEventListener('click', (e) => {
   const a = e.target.closest('a');
