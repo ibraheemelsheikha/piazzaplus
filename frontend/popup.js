@@ -58,11 +58,23 @@ function loadSavedCourses() {
       const li = document.createElement('li');
       li.className = 'saved-course';
       li.dataset.nid = course.networkId;
-      li.textContent = course.displayName || course.networkId;
-
       li.tabIndex = 0;
       li.setAttribute('role', 'button');
       li.title = 'Click to select this course';
+
+      // create a span for the name
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'saved-course-name';
+      nameSpan.textContent = course.displayName || course.networkId;
+      li.appendChild(nameSpan);
+
+      // create the delete button
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'delete-course-btn';
+      deleteBtn.innerHTML = '&times;'; // 'x' symbol
+      deleteBtn.title = `Remove ${course.displayName || course.networkId}`;
+      deleteBtn.dataset.nid = course.networkId; // store nid for the handler
+      li.appendChild(deleteBtn);
 
       savedCoursesList.appendChild(li);
     }
@@ -87,6 +99,30 @@ function saveCourse(networkId, displayName) {
         () => resolve()
       );
     });
+  });
+}
+
+function removeCourse(networkId) {
+  if (!chrome?.storage?.local) return;
+
+  chrome.storage.local.get(['savedCourses', 'networkId'], (data) => {
+    const saved = data.savedCourses || {};
+    const activeId = data.networkId;
+
+    if (saved[networkId]) {
+      delete saved[networkId]; // remove from saved list
+
+      const tasksToSet = { savedCourses: saved };
+
+      // if the removed course was the active one, clear the active networkId
+      if (activeId === networkId) {
+        tasksToSet.networkId = '';
+      }
+
+      chrome.storage.local.set(tasksToSet, () => {
+        loadSavedCourses(); // refresh the UI list
+      });
+    }
   });
 }
 
@@ -179,21 +215,33 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSavedCourses();
 });
 
-// clicking a saved course fills fields
+
+// clicking a saved course fills fields or deletes
 if (savedCoursesList) {
   savedCoursesList.addEventListener('click', (e) => {
+    // Check if the delete button was clicked
+    const deleteBtn = e.target.closest('.delete-course-btn');
+    if (deleteBtn) {
+      e.stopPropagation();
+      const nid = deleteBtn.dataset.nid;
+      if (nid) {
+        removeCourse(nid);
+      }
+      return;
+    }
+
     const li = e.target.closest('.saved-course');
     if (!li) return;
 
     const nid = li.dataset.nid;
     if (!nid) return;
 
-    // Fill the network ID and label fields
     if (networkInput) {
       networkInput.value = nid;
     }
     if (courseLabelInput) {
-      courseLabelInput.value = li.textContent || '';
+      const nameSpan = li.querySelector('.saved-course-name');
+      courseLabelInput.value = nameSpan ? nameSpan.textContent : '';
     }
 
     nextBtn?.click();

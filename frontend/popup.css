@@ -248,7 +248,10 @@ textarea {
 }
 
 .saved-course {
-    padding: 6px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px 6px 15px; /* top/bottom, right, left */
     margin-bottom: 4px;
     border-radius: 999px;
     border: 1px solid #d0d7e2;
@@ -266,4 +269,40 @@ textarea {
 
 .saved-course:active {
     transform: translateY(1px);
+}
+
+.saved-course-name {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Clicks are handled by the parent <li> event listener */
+}
+
+.delete-course-btn {
+    /* Reset all default button styles */
+    background: none;
+    border: none;
+    margin: 0;
+    padding: 0;
+    width: auto;
+    overflow: visible;
+    font: inherit;
+    line-height: normal;
+
+    /* Our 'x' button styles */
+    color: #aaa;
+    flex-shrink: 0;
+    margin-left: 8px; /* Space between name and 'x' */
+    padding: 4px; /* Make a nice round click target */
+    font-size: 1.1rem;
+    font-weight: normal;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.delete-course-btn:hover {
+    color: #d90000; /* Red 'x' */
+    background-color: #ffe0e0; /* Light red background */
 }
