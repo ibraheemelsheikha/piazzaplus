@@ -90,7 +90,7 @@ def update_database():
                         ]}
                         resp = llm_vision.invoke([msg])
                         time.sleep(1)
-                        captions.append(resp.text())
+                        captions.append(resp.content)
                     except Exception as e:
                         print(f"\n#{pid}: Image caption failed for {cdn}: {e}")
                         logging.error(f"\nFor course: {course_code}, post #{pid}: Image caption failed for {cdn}: {e}", exc_info=True)
@@ -143,7 +143,7 @@ def update_database():
                         {"type":"image","source_type":"base64","data":enc,"mime_type":"image/png"},
                     ]}
                     r=llm_vision.invoke([msg]); time.sleep(1)
-                    caps.append(r.text())
+                    caps.append(r.content)
                 except Exception as e:
                     print(f"\n#{pid}: Image caption failed for {cdn}: {e}") # future work: retry if i get rate limit exceed
                     logging.error(f"\nFor course: {course_code}, post #{pid}: Image caption failed for {cdn}: {e}", exc_info=True)
