@@ -2,7 +2,7 @@ import json
 import re
 import hashlib
 from pathlib import Path
-from langchain.text_splitter import NLTKTextSplitter
+from langchain_text_splitters import NLTKTextSplitter
 import requests
 import nltk
 
