@@ -58,14 +58,41 @@ function loadSavedCourses() {
       const li = document.createElement('li');
       li.className = 'saved-course';
       li.dataset.nid = course.networkId;
-      li.textContent = course.displayName || course.networkId;
+
+      // Create a span for the text content
+      const textSpan = document.createElement('span');
+      textSpan.textContent = course.displayName || course.networkId;
+      li.appendChild(textSpan);
+
+      // Create the Delete (X) Button
+      const delBtn = document.createElement('button');
+      delBtn.className = 'delete-course-btn';
+      delBtn.innerHTML = '&times;';
+      delBtn.title = 'Remove course';
+
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering the course selection
+        deleteCourse(course.networkId);
+      });
 
       li.tabIndex = 0;
       li.setAttribute('role', 'button');
       li.title = 'Click to select this course';
 
+      li.appendChild(delBtn);
       savedCoursesList.appendChild(li);
     }
+  });
+}
+
+function deleteCourse(networkId) {
+  if (!chrome?.storage?.local) return;
+  chrome.storage.local.get(['savedCourses'], (data) => {
+    const saved = data.savedCourses || {};
+    delete saved[networkId];
+    chrome.storage.local.set({ savedCourses: saved }, () => {
+      loadSavedCourses();
+    });
   });
 }
 
@@ -183,17 +210,21 @@ document.addEventListener('DOMContentLoaded', () => {
 if (savedCoursesList) {
   savedCoursesList.addEventListener('click', (e) => {
     const li = e.target.closest('.saved-course');
-    if (!li) return;
+    const delBtn = e.target.closest('.delete-course-btn');
+    if (!li || delBtn) return; // ignore if clicking delete button
 
     const nid = li.dataset.nid;
     if (!nid) return;
 
-    // Fill the network ID and label fields
+    // fill network ID and label fields
     if (networkInput) {
       networkInput.value = nid;
     }
-    if (courseLabelInput) {
-      courseLabelInput.value = li.textContent || '';
+
+    // extract text from the span
+    const span = li.querySelector('span');
+    if (courseLabelInput && span) {
+      courseLabelInput.value = span.textContent || '';
     }
 
     nextBtn?.click();
